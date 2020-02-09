@@ -8,6 +8,7 @@ import os.path as osp
 from functools import partial
 
 import gym
+import wandb
 import tensorflow as tf
 from baselines import logger
 from baselines.bench import Monitor
@@ -22,6 +23,10 @@ from utils import random_agent_ob_mean_std
 from wrappers import MontezumaInfoWrapper, make_mario_env, make_robo_pong, make_robo_hockey, \
     make_multi_pong, AddRandomStateToInfo, MaxAndSkipEnv, ProcessFrame84, ExtraTimeLimit
 
+from tensorflow import InteractiveSession
+config = tf.ConfigProto()
+config.gpu_options.allow_growth = True
+session = InteractiveSession(config=config)
 
 def start_experiment(**args):
     make_env = partial(make_env_all_params, add_monitor=True, args=args)
@@ -92,10 +97,10 @@ class Trainer(object):
             dynamics=self.dynamics
         )
 
-        self.agent.to_report['aux'] = tf.reduce_mean(self.feature_extractor.loss)
+        self.agent.to_report['aux'] = tf.reduce_mean(self.feature_extractor.loss) # Loss of the inverse dynamics
         self.agent.total_loss += self.agent.to_report['aux']
         self.agent.to_report['dyn_loss'] = tf.reduce_mean(self.dynamics.loss)
-        self.agent.total_loss += self.agent.to_report['dyn_loss']
+        self.agent.total_loss += self.agent.to_report['dyn_loss'] #Loss of the forward dynamics
         self.agent.to_report['feat_var'] = tf.reduce_mean(tf.nn.moments(self.feature_extractor.features, [0, 1])[1])
 
     def _set_env_vars(self):
@@ -110,6 +115,7 @@ class Trainer(object):
         while True:
             info = self.agent.step()
             if info['update']:
+                log_wandb(info['update'])
                 logger.logkvs(info['update'])
                 logger.dumpkvs()
             if self.agent.rollout.stats['tcount'] > self.num_timesteps:
@@ -117,6 +123,8 @@ class Trainer(object):
 
         self.agent.stop_interaction()
 
+def log_wandb(update_info):
+    wandb.log(update_info)
 
 def make_env_all_params(rank, add_monitor, args):
     if args["env_kind"] == 'atari':
@@ -207,5 +215,10 @@ if __name__ == '__main__':
                         choices=["none", "idf", "vaesph", "vaenonsph", "pix2pix"])
 
     args = parser.parse_args()
+
+    wandb.init(project="curiosity", tags=['breakout', 'reproduction'])
+    config = {}
+    config.update(vars(args))
+    wandb.config.update(config)
 
     start_experiment(**args.__dict__)

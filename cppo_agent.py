@@ -214,6 +214,7 @@ class PpoOptimizer(object):
     def step(self):
         self.rollout.collect_rollout()
         update_info = self.update()
+        update_info['ext_rew_ep_mean'] = np.mean(self.rollout.all_ep_ext_rewards)
         return {'update': update_info}
 
     def get_var_values(self):

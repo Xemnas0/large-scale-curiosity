@@ -23,6 +23,7 @@ class FeatureExtractor(object):
             self.next_ob = tf.concat([self.obs[:, 1:], self.last_ob], 1)
 
             if features_shared_with_policy:
+                # Never used
                 self.features = self.policy.features
                 self.last_features = self.policy.get_features(self.last_ob, reuse=True)
             else:

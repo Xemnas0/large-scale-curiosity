@@ -1,6 +1,7 @@
 import os
 import pickle
-
+import wandb
+import numpy as np
 from baselines import logger
 from mpi4py import MPI
 
@@ -19,6 +20,7 @@ class Recorder(object):
             logger.info("episode recordings saved to ", self.filenames[0])
 
     def record(self, timestep, lump, acs, infos, int_rew, ext_rew, news):
+        ext_rew_ended_episodes = []
         for out_index in range(self.nenvs_per_lump):
             in_index = out_index + lump * self.nenvs_per_lump
             if timestep == 0:
@@ -36,13 +38,15 @@ class Recorder(object):
                 if news[out_index]:
                     self.ep_infos[in_index]['ret'] = infos[out_index]['episode']['r']
                     self.ep_infos[in_index]['len'] = infos[out_index]['episode']['l']
+                    ext_rew_ended_episodes.append(np.sum(self.ext_rews[out_index]))
                     self.dump_episode(in_index)
 
                 self.acs[in_index].append(acs[out_index])
-
+        return ext_rew_ended_episodes
     def dump_episode(self, i):
         episode = {'acs': self.acs[i],
                    'int_rew': self.int_rews[i],
+                   'ext_rew': self.ext_rews[i],
                    'info': self.ep_infos[i]}
         filename = self.filenames[i]
         if self.episode_worth_saving(i):

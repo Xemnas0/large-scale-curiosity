@@ -51,8 +51,10 @@ class Rollout(object):
 
     def collect_rollout(self):
         self.ep_infos_new = []
+        self.all_ep_ext_rewards = []
         for t in range(self.nsteps):
-            self.rollout_step()
+            ep_ext_rewards = self.rollout_step()
+            self.all_ep_ext_rewards.extend(ep_ext_rewards)
         self.calculate_reward()
         self.update_info()
 
@@ -65,6 +67,7 @@ class Rollout(object):
     def rollout_step(self):
         t = self.step_count % self.nsteps
         s = t % self.nsteps_per_seg
+        ep_ext_rewards = []
         for l in range(self.nlumps):
             obs, prevrews, news, infos = self.env_get(l)
             # if t > 0:
@@ -104,7 +107,7 @@ class Rollout(object):
             #     self.int_rew[sli] = int_rew
             #     self.buf_rews[sli, t - 1] = self.reward_fun(ext_rew=prevrews, int_rew=int_rew)
             if self.recorder is not None:
-                self.recorder.record(timestep=self.step_count, lump=l, acs=acs, infos=infos, int_rew=self.int_rew[sli],
+                ep_ext_rewards = self.recorder.record(timestep=self.step_count, lump=l, acs=acs, infos=infos, int_rew=self.int_rew[sli],
                                      ext_rew=prevrews, news=news)
         self.step_count += 1
         if s == self.nsteps_per_seg - 1:
@@ -122,7 +125,7 @@ class Rollout(object):
                     #
                     # self.int_rew[sli] = int_rew
                     # self.buf_rews[sli, t] = self.reward_fun(ext_rew=ext_rews, int_rew=int_rew)
-
+        return ep_ext_rewards
     def update_info(self):
         all_ep_infos = MPI.COMM_WORLD.allgather(self.ep_infos_new)
         all_ep_infos = sorted(sum(all_ep_infos, []), key=lambda x: x[0])
